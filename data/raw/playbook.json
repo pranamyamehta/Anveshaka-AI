@@ -1,0 +1,228 @@
+[
+  {
+    "incident_id": "INC-4731",
+    "anomaly_category": "Thermal",
+    "symptom_signature": [
+      "anomaly_type == Thermal",
+      "fan_rpm < 2000",
+      "cpu_temp_c > 85",
+      "inlet_temp_c < 27",
+      "cpu_load_pct < 60",
+      "severity IN [ERROR, CRITICAL]"
+    ],
+    "historical_root_cause": "Chassis fan module 2 suffered bearing failure and rotor seizure after roughly 3.5 years of continuous operation. The failure was preceded by degraded RPM (below 6000) and rising vibration. Because CPU1 sits directly downstream of fan 2, it reached PROCHOT (about 96C) while inlet temperature stayed normal. Moderate CPU load plus normal ambient temperature and a collapsed fan reading indicates localized airflow loss in the chassis, not a room-cooling or workload problem.",
+    "remediation_action": "1. Acknowledge alert and confirm via BMC (ipmitool sdr type Fan) that the minimum fan reading is below 2000 RPM while inlet_temp_c is below 27C and cpu_load_pct is moderate; this rules out room-cooling loss and workload-driven heat. 2. Cordon the node (kubectl cordon <node>) and drain workloads (kubectl drain <node> --ignore-daemonsets --delete-emptydir-data --grace-period=120). 3. If cpu_temp_c stays above 95C after draining, apply a BMC power cap of 250W or perform a graceful shutdown to avoid thermal-trip instability. 4. Dispatch on-site technician with a spare hot-swap fan module to replace the failed fan and clear the related SEL entries. 5. After replacement, verify minimum fan RPM is back within 8800-11500 and idle cpu_temp_c is below 70C, then run a 15-minute stress-ng burn-in. 6. Uncordon the node. 7. Query inventory for chassis from the same fan lot with 3+ years runtime and schedule proactive replacement for any fan reading below 6000 RPM.",
+    "historical_resolution_time_mins": 58
+  },
+  {
+    "incident_id": "INC-4802",
+    "anomaly_category": "Thermal",
+    "symptom_signature": [
+      "anomaly_type == Thermal",
+      "inlet_temp_c > 34",
+      "fan_rpm > 15500",
+      "humidity_pct < 25",
+      "multiple nodes in same or adjacent racks alerting within 15 min",
+      "severity == CRITICAL"
+    ],
+    "historical_root_cause": "Loss of cooling capacity in the row cold aisle. The chilled-water control valve actuator on the serving CRAH unit failed closed after losing its 0-10V control signal from the BMS, so supply air temperature drifted from about 18C to above 30C over 30-40 minutes. Server fans ramped to maximum (above 15500 RPM) without being able to compensate. Relative humidity fell below 25% because the same absolute moisture content at a higher air temperature yields a lower RH. Correlated inlet rises across several nodes and racks distinguish this from a single-node or single-rack airflow problem.",
+    "remediation_action": "1. Acknowledge alert and open a Sev-2 incident; confirm in the DCIM/BMS that the serving CRAH supply air temperature is elevated and the chilled-water valve position is stuck at 0%, and check whether neighboring CRAH units are already at 100% capacity. 2. Page Facilities on-call to put the valve in manual override or fail over to a standby CRAH. 3. Start load shedding in the affected racks: cordon and drain non-critical nodes first (kubectl cordon, then kubectl drain --ignore-daemonsets --delete-emptydir-data) and apply BMC power caps of about 70% to the remaining nodes to cut heat output. 4. Deploy portable spot coolers to the affected cold aisle. 5. If any node reports inlet_temp_c at or above 35C for more than 10 minutes, perform a graceful shutdown of that node to stay within the ASHRAE A2 allowable limit. 6. After cooling is restored, return nodes to service in batches (maximum 25% at a time), confirm inlet_temp_c is below 27C, and review SEL logs for PROCHOT or thermal-throttle events indicating hardware stress.",
+    "historical_resolution_time_mins": 94
+  },
+  {
+    "incident_id": "INC-4857",
+    "anomaly_category": "Thermal",
+    "symptom_signature": [
+      "anomaly_type == Thermal",
+      "cpu_temp_c > 92",
+      "cpu_load_pct > 95",
+      "fan_rpm > 10500",
+      "inlet_temp_c < 28",
+      "system_load_1m > 100",
+      "severity IN [WARNING, ERROR, CRITICAL]"
+    ],
+    "historical_root_cause": "Workload-induced thermal saturation, not a hardware fault. A batch analytics job using AVX-512-heavy kernels pinned all 128 hardware threads at about 99% with no CPU quota applied. Cooling was healthy: fans responded correctly (11-12k RPM) and inlet air was nominal. The CPU packages reached PROCHOT and throttled because sustained power density exceeded the thermal design point for that SKU. High CPU temperature with high CPU load and normal fan RPM points to application workload, in contrast to high CPU temperature with low fan RPM and moderate load.",
+    "remediation_action": "1. Acknowledge alert and verify fan_rpm is within normal range (8800-12000) and inlet_temp_c is below 28C to rule out fan failure and room-cooling loss. 2. Identify the top CPU consumer (top -H, kubectl top pod --all-namespaces --sort-by=cpu) and confirm it is an expected batch or analytics workload. 3. Apply CPU limits (cgroup cpu.max or Kubernetes resource limits at roughly 80% of threads) or reduce job parallelism; reschedule excess pods to nodes with thermal headroom. 4. Monitor until cpu_temp_c drops below 85C and throttling clears. 5. If cpu_temp_c stays above 85C with cpu_load_pct below 70% after cooldown, schedule a maintenance-window inspection of heatsink seating and thermal interface material. 6. Add a scheduler thermal taint or anti-affinity rule so heavy batch jobs do not co-locate on the same node. No technician dispatch is needed unless step 5 triggers.",
+    "historical_resolution_time_mins": 21
+  },
+  {
+    "incident_id": "INC-4911",
+    "anomaly_category": "Thermal",
+    "symptom_signature": [
+      "anomaly_type == Thermal",
+      "inlet_temp_c > 30",
+      "inlet_temp_c < 34",
+      "fan_rpm between 12000 and 15000",
+      "cpu_load_pct < 65",
+      "adjacent node inlet_temp_c < 26",
+      "only top-of-rack U-positions affected"
+    ],
+    "historical_root_cause": "Hot-aisle exhaust recirculation over the top of the rack. Blanking panels were missing in U30-U36 after a decommission, and a brush grommet in the rear cable cutout had failed. Hot exhaust air was pulled back into the front of the topmost server (U38) while ambient supply and neighboring node inlets stayed nominal (about 24C). Server fans compensated at elevated but not maximum RPM. The localized, single-node inlet rise with healthy adjacent nodes separates this from a CRAH or cooling-capacity failure.",
+    "remediation_action": "1. Acknowledge alert and compare adjacent nodes in the same rack via DCIM; confirm neighbors read below 26C and CRAH supply air is within 18-22C, ruling out cooling loss. 2. Dispatch a technician to inspect rack airflow: install blanking panels in all empty U-spaces, replace failed brush grommets, and check containment door gaskets. 3. If cpu_temp_c exceeds 85C before the fix, cordon and drain the affected node or lower its BMC power cap to reduce heat. 4. Validate with a handheld thermal camera or anemometer and confirm inlet_temp_c drops below 27C within 15 minutes of the fix. 5. Audit all racks in the row for open U-spaces and unsealed cutouts. 6. Update the decommission checklist to require blanking-panel installation.",
+    "historical_resolution_time_mins": 52
+  },
+  {
+    "incident_id": "INC-4968",
+    "anomaly_category": "Power",
+    "symptom_signature": [
+      "anomaly_type == Power",
+      "severity == CRITICAL",
+      "raw_message contains Power Supply Redundancy Lost",
+      "power_draw_w > 600",
+      "power_draw_w > 0"
+    ],
+    "historical_root_cause": "Loss of AC input to PSU1 on the A-feed because a branch breaker (or PDU outlet segment) on PDU-A tripped. The node stayed up on PSU2, which then carried the full node load (about 740W of a 1100W rating) and shifted the entire rack load onto the B-feed. Redundancy was lost with no immediate outage, but the B-feed branch was left near its derated breaker limit, which created the risk of a cascading overload (see INC-5014).",
+    "remediation_action": "1. Acknowledge alert and confirm via BMC (ipmitool sdr type 'Power Supply') which PSU lost AC input and whether it is an input loss or a PSU hardware fault. 2. Check the rack PDU-A branch via SNMP/DCIM for a tripped breaker or dead outlet segment. 3. Immediately compute B-feed headroom for the rack; if any B-feed branch is above 80% of its rated breaker limit, apply BMC power caps to non-critical nodes or cordon and drain them to shed load. 4. Dispatch a technician to inspect the A-feed branch for shorts or damaged cords before resetting the breaker; do not reset repeatedly. 5. Replace the PSU if the unit is faulty (hot-swap). 6. Confirm redundancy is restored (PSU1 and PSU2 draw split roughly 50/50) and clear the alert. 7. Add a DCIM alert for any rack running on a single feed above 70% of branch capacity.",
+    "historical_resolution_time_mins": 38
+  },
+  {
+    "incident_id": "INC-5014",
+    "anomaly_category": "Power",
+    "symptom_signature": [
+      "anomaly_type == Power",
+      "severity == FATAL",
+      "power_draw_w == 0",
+      "cpu_load_pct == 0",
+      "multiple nodes in same rack lost within 10 seconds",
+      "raw_message contains breaker"
+    ],
+    "historical_root_cause": "Cascading overcurrent after an A-feed loss. The entire rack load transferred to the B-feed branch B2 (rated 30A, 24A derated). With the nodes on that branch running at 60-70% load, B2 exceeded its derated limit and its thermal-magnetic breaker tripped, de-energizing every node whose only remaining PSU path was on B2. Power draw dropped to 0W on multiple nodes at the same instant. No load shedding was performed during the earlier single-feed condition.",
+    "remediation_action": "1. Declare a Sev-1 incident and page Facilities and Electrical on-call. 2. Verify via PDU telemetry/DCIM that breaker B2 tripped on overcurrent and rule out an upstream UPS, ATS or RPP event by checking neighboring racks. 3. Do not reset the breaker immediately; have an electrician measure branch load and inspect for shorts or faulty equipment first. 4. Restore the A-feed first (fix the cause of the initial A-branch loss, see INC-4968) so load is shared again before re-energizing B2. 5. Power nodes on in staggered batches (no more than 4 nodes per 60 seconds) to avoid inrush-induced re-trips. 6. After boot, verify filesystem and storage replica consistency, then rejoin nodes to the cluster and confirm workloads rescheduled correctly. 7. Post-incident: enforce a rule that rack load on a single feed must stay below 80% of derated capacity during N+1 operation, and add an alert for sustained single-feed operation.",
+    "historical_resolution_time_mins": 147
+  },
+  {
+    "incident_id": "INC-5047",
+    "anomaly_category": "Power",
+    "symptom_signature": [
+      "anomaly_type == Power",
+      "power_draw_w > 1150",
+      "cpu_load_pct > 90",
+      "raw_message contains power cap",
+      "severity == CRITICAL"
+    ],
+    "historical_root_cause": "An accelerator node running a sustained AI training job pushed its draw above the BMC-enforced 1200W node power cap. Six nodes in the same rack started synchronized training jobs together, driving the rack PDU-B branch to 96% of its derated breaker limit. BMC power capping began throttling CPU and accelerator clocks, causing a performance drop, and the rack was one more burst away from tripping the branch breaker.",
+    "remediation_action": "1. Acknowledge alert and check the DCIM rack power summary to confirm branch utilization and which nodes are near their caps. 2. Pause or migrate the lowest-priority job off the node (kubectl cordon plus eviction of the lowest-priority pods). 3. Temporarily lower dynamic power caps on the other nodes in the rack (for example to 1000W) until branch utilization falls below 85% of the derated limit. 4. If the branch is above 90%, cordon and drain two non-critical nodes. 5. Stagger job start times and enable power-aware bin-packing in the scheduler so synchronized bursts do not land in one rack. 6. Review rack power allocation and move nodes to a lower-utilized branch if the pattern recurs. No technician dispatch is required.",
+    "historical_resolution_time_mins": 26
+  },
+  {
+    "incident_id": "INC-5099",
+    "anomaly_category": "Compute",
+    "symptom_signature": [
+      "anomaly_type == Compute",
+      "memory_usage_pct > 97",
+      "system_load_1m > 60",
+      "cpu_load_pct < 85",
+      "raw_message contains NodeOOMKillDetected",
+      "MemTotal lower than CMDB baseline"
+    ],
+    "historical_root_cause": "DIMM_A3 developed uncorrectable ECC errors after a rising trend of corrected errors. On reboot the BIOS failed post-package repair and disabled memory channel A, reducing usable memory from 512 GiB to 384 GiB. The unchanged workload then exhausted the reduced capacity, causing OOM kills, swap thrashing and a high load average without a matching rise in CPU utilization. The discrepancy between reported MemTotal and the CMDB baseline is the key discriminator from a software memory leak.",
+    "remediation_action": "1. Acknowledge alert and compare MemTotal against the CMDB baseline (free -g, dmidecode -t memory); a shortfall of 128 GiB confirms a disabled channel. 2. Check BMC SEL and run edac-util -v or mcelog to find uncorrectable or corrected error storms on DIMM_A3. 3. Cordon and drain the node, evicting memory-heavy pods first (kubectl cordon, then kubectl drain --ignore-daemonsets --delete-emptydir-data). 4. Dispatch a technician with a matching spare DIMM (same capacity, rank and speed) to replace DIMM_A3 and reseat adjacent DIMMs. 5. Run the vendor memory diagnostic and confirm MemTotal returns to 512 GiB. 6. Return the node to service. 7. Query fleet-wide EDAC counters for DIMMs from the same lot and replace any with a rising corrected-error rate.",
+    "historical_resolution_time_mins": 83
+  },
+  {
+    "incident_id": "INC-5120",
+    "anomaly_category": "Compute",
+    "symptom_signature": [
+      "anomaly_type == Compute",
+      "severity == FATAL",
+      "cpu_load_pct == 0",
+      "memory_usage_pct == 0",
+      "power_draw_w > 100",
+      "cpu_temp_c < 60",
+      "raw_message contains Machine Check OR CATERR"
+    ],
+    "historical_root_cause": "Uncorrectable machine check on CPU2 (MCA bank 7, L3 cache) causing a CATERR event and a hung host. The BMC remained alive and the chassis stayed powered (power draw above 100W), which separates this from a power-loss event. The failure was preceded by several days of rising corrected cache errors, consistent with degrading silicon or a marginal voltage regulator under sustained load.",
+    "remediation_action": "1. Acknowledge alert and confirm via BMC (ipmitool sel elist or Redfish LogServices) that CATERR or MCE entries exist and chassis power state is ON, not OFF. 2. Export the SEL and BMC crash dump for vendor analysis before taking any action. 3. Fence the node: confirm the orchestrator has evicted its workloads (kubectl get pods -A -o wide, or delete the node object if it is stuck NotReady). 4. Power cycle once through the BMC (ipmitool chassis power cycle) and watch the boot; if an MCE recurs, treat it as a hardware fault. 5. Review the last 14 days of mcelog and EDAC history for corrected-error precursors. 6. If the fault recurs, dispatch a technician to reseat or replace CPU2, update BIOS and microcode to the vendor-advised version, and open an RMA. 7. Run a 30-minute stress-ng burn-in before returning the node to service.",
+    "historical_resolution_time_mins": 118
+  },
+  {
+    "incident_id": "INC-5156",
+    "anomaly_category": "Storage",
+    "symptom_signature": [
+      "anomaly_type == Storage",
+      "disk_read_errors > 250",
+      "latency_ms > 100",
+      "disk_iops dropped > 60% vs 7-day median",
+      "raw_message contains NVMe OR media_errors",
+      "severity == CRITICAL"
+    ],
+    "historical_root_cause": "A U.2 TLC NVMe SSD reached end of endurance. Available spare fell to 4%, below the vendor threshold, and uncorrectable media errors climbed rapidly. The Ceph OSD on the device (osd.87) hit slow ops, then was marked down. IOPS collapsed and latency rose above 100 ms. If recovery is not throttled, the resulting backfill traffic can saturate the uplinks of peer OSD nodes within about an hour (see INC-5261).",
+    "remediation_action": "1. Acknowledge alert and confirm with nvme smart-log /dev/nvme7n1 that critical_warning is non-zero and available_spare is below threshold. 2. Run ceph -s and confirm no other degraded or undersized PGs exist, so a further failure will not cause data loss. 3. Throttle recovery before backfill starts: ceph config set osd osd_max_backfills 1 and ceph config set osd osd_recovery_max_active 1. 4. Stop the failed OSD (systemctl stop ceph-osd@87) and remove it from service (ceph osd destroy 87 --yes-i-really-mean-it). 5. Dispatch a technician to hot-swap the drive in the matching slot. 6. Provision a new OSD on the replacement device with the same device class and wait for HEALTH_OK. 7. Restore default backfill settings after recovery and add a SMART available_spare warning at 20% to catch wear-out earlier.",
+    "historical_resolution_time_mins": 126
+  },
+  {
+    "incident_id": "INC-5183",
+    "anomaly_category": "Storage",
+    "symptom_signature": [
+      "anomaly_type == Storage",
+      "storage_capacity_pct > 97",
+      "disk_iops < 5000",
+      "latency_ms > 150",
+      "severity == CRITICAL"
+    ],
+    "historical_root_cause": "Storage pool ec-archive crossed the 97% critical threshold. A lifecycle policy that expires old snapshots and object versions had been disabled by a configuration push, so expired data accumulated while the nightly ingest job kept writing about 2.5 TiB per run. Near-full pools degrade write throughput as the allocator struggles to find free space, causing IOPS to collapse and write latency to climb above 150 ms.",
+    "remediation_action": "1. Acknowledge alert and confirm per-pool usage and growth rate with the storage cluster's capacity report (for example ceph df detail). 2. Pause the nightly ingest job immediately to prevent the pool from reaching 100% and going read-only. 3. Free space by purging expired snapshots and object versions that exceed the retention policy; verify each deletion against the retention schedule before running it. 4. Re-enable the lifecycle policy that the configuration push disabled and validate it on a test bucket. 5. Add capacity (additional drives or a new storage node) and rebalance to bring utilization below 80%. 6. Resume the ingest job only after utilization is below 85% and the latency baseline is restored. 7. Add a capacity-forecast alert that fires when projected time to 95% is under 7 days.",
+    "historical_resolution_time_mins": 205
+  },
+  {
+    "incident_id": "INC-5207",
+    "anomaly_category": "Storage",
+    "symptom_signature": [
+      "anomaly_type == Storage",
+      "severity == FATAL",
+      "disk_iops == 0",
+      "disk_read_errors > 1000",
+      "latency_ms > 10000",
+      "raw_message contains HBA OR enclosure OR expander"
+    ],
+    "historical_root_cause": "The SAS HBA (mpt3sas) suffered a firmware fault and failed to recover from a hard reset, which dropped the backplane enclosure and 8 of 12 drives at the same instant. The simultaneous multi-drive loss points to a shared component (HBA, SAS expander on the backplane, or the mini-SAS cable) rather than concurrent media failures. IOPS fell to zero and I/O requests timed out.",
+    "remediation_action": "1. Acknowledge alert and confirm the multi-drive loss pattern (lsscsi, sas3ircu or storcli status); drives vanishing together indicates a controller or enclosure fault, not media failure. 2. Prevent data damage: cordon the node, stop the storage daemons on it, and do not force drives online or start any RAID rebuild. 3. Check cluster redundancy (ceph -s or equivalent) to confirm replicas or erasure-coding can absorb the loss of this node. 4. Collect HBA firmware logs and the BMC SEL. 5. Dispatch a technician to reseat the mini-SAS cables and HBA and power cycle the node; if the fault persists, replace the HBA, then the expander or backplane. 6. Update HBA firmware to the vendor-recommended version. 7. Bring drives back online and let replication resync; verify data integrity before returning the node to service.",
+    "historical_resolution_time_mins": 191
+  },
+  {
+    "incident_id": "INC-5232",
+    "anomaly_category": "Network",
+    "symptom_signature": [
+      "anomaly_type == Network",
+      "packet_drop_rate_pct > 8",
+      "latency_ms > 30",
+      "severity == CRITICAL",
+      "raw_message contains rx_crc_errors OR Rx power",
+      "network_tx_mbps < 30% of link capacity"
+    ],
+    "historical_root_cause": "A degrading SFP28 SR transceiver and a contaminated fiber end-face drove received optical power below the low-alarm threshold (below -13 dBm). CRC errors caused frame drops and TCP retransmissions, the link flapped repeatedly, and the LACP member was removed from the bond. Throughput stayed low because the link was unhealthy, not saturated, which separates this from a congestion event.",
+    "remediation_action": "1. Acknowledge alert and read optical diagnostics on both ends (ethtool -m ens1f0 on the host and the switch transceiver detail command); an Rx power below -11 dBm confirms an optical path problem. 2. Verify the bond has another healthy member; if the node is single-homed or loss exceeds 5%, drain the node. 3. Clean both fiber end-faces with an approved click-cleaner and reseat the transceiver. 4. If Rx power does not recover, replace the SFP28 (25G-SR, OM4 multimode) and the patch lead. 5. Clear interface counters and monitor rx_crc_errors for 30 minutes. 6. If readings stay low, test or replace the structured-cabling trunk. 7. Re-add the member to the LACP bond and confirm drop rate returns below 0.1%.",
+    "historical_resolution_time_mins": 71
+  },
+  {
+    "incident_id": "INC-5261",
+    "anomaly_category": "Network",
+    "symptom_signature": [
+      "anomaly_type == Network",
+      "network_tx_mbps > 23500",
+      "packet_drop_rate_pct > 2",
+      "latency_ms > 50",
+      "severity == CRITICAL",
+      "Storage CRITICAL alert in same rack within the previous 120 min"
+    ],
+    "historical_root_cause": "Cluster self-healing traffic after an OSD failure (see INC-5156). With default osd_max_backfills, peer storage nodes in the rack generated sustained east-west replication at about 25 Gbps. Flow concentration on a single 25G LAG member, caused by hash polarization, pushed the uplink to 98%+ utilization with tail drops. QoS did not prioritize client I/O over recovery traffic, so latency rose above 70 ms for client requests.",
+    "remediation_action": "1. Acknowledge alert and confirm recovery is in progress (ceph -s) and that switch interface counters show saturation on the uplink or LAG member. 2. Throttle recovery: ceph config set osd osd_max_backfills 1 and ceph config set osd osd_recovery_max_active 1. 3. Apply or tighten QoS (DSCP marking) so client I/O is prioritized over backfill traffic. 4. Verify the LACP hash policy is layer3+4 and check per-member utilization for polarization. 5. Monitor until tx_dropped falls below 0.1% and client latency returns to baseline. 6. Do not mark additional OSDs out during recovery. 7. After HEALTH_OK, restore default recovery settings and add an alert on per-member LAG utilization.",
+    "historical_resolution_time_mins": 44
+  },
+  {
+    "incident_id": "INC-5290",
+    "anomaly_category": "Network",
+    "symptom_signature": [
+      "anomaly_type == Network",
+      "severity == FATAL",
+      "packet_drop_rate_pct == 100",
+      "network_tx_mbps == 0",
+      "latency_ms >= 5000",
+      "all nodes in rack lose uplink simultaneously",
+      "raw_message contains TOR OR Loss of signal"
+    ],
+    "historical_root_cause": "Top-of-rack switch control-plane and forwarding-plane hang. A memory leak in the network operating system exhausted resources until the watchdog failed to recover the ASIC, leaving the switch powered but not forwarding. All 24 downlinks showed loss of signal and the switch stopped answering SNMP. Because the rack was single-homed to this one ToR, every node lost connectivity at once while BMC out-of-band access stayed up.",
+    "remediation_action": "1. Declare a Sev-1 incident; verify scope: every node in the rack lost its uplink at the same time and SNMP to the ToR times out. 2. Confirm nodes are alive via the out-of-band BMC network, so this is not a power event. 3. Check the ToR power feed in the PDU and attach through the serial console server. 4. Collect show tech-support output and crash logs before any reboot. 5. Power cycle the ToR via the PDU outlet; if it does not return within 10 minutes, swap in the cold-spare switch and load the saved configuration. 6. Verify LACP, BGP/EVPN sessions and gateway reachability from at least three nodes. 7. Confirm workloads rescheduled correctly and check storage clusters for split-brain or replica divergence. 8. Open a vendor RMA, upgrade the NOS to the fixed release, and plan dual-homing for the rack.",
+    "historical_resolution_time_mins": 67
+  }
+]

@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic>=2
+pymongo
+langgraph
+langchain-core
+langchain-ollama
+ollama
+python-dotenv
+httpx
+pytest
+pandas
+matplotlib
