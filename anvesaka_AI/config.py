@@ -1,9 +1,11 @@
 """Application settings loaded from environment variables and the local ``.env`` file."""
+from __future__ import annotations
 
 from dataclasses import dataclass
 import os
 
 from dotenv import load_dotenv
+
 
 
 @dataclass(frozen=True)
