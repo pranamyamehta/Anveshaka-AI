@@ -4,24 +4,25 @@
 
 Anvesaka (Sanskrit अन्वेषक, "investigator") is a mini project for the Dept. of CSE, BMSIT&M (2026). It is a **lightweight agent that receives a data center alert and investigates it the way an on-call engineer would**: it correlates related alerts, checks node context, matches the evidence against a playbook of past incidents, and recommends a remediation. It is exposed through a FastAPI REST endpoint.
 
-The emphasis is on **agent orchestration and tool calling**, not on a UI. There is no frontend. Swagger (`/docs`) plus `curl` is the demo surface.
+The system features a **FastAPI backend** paired with an interactive **Next.js operations console frontend** (`frontend/`) and real-time Server-Sent Events (SSE). Swagger UI (`/docs`), CLI demo scripts, and the operations dashboard serve as the demo surfaces.
 
 ---
 
-## 1. Goals and non-goals
+## 1. Goals and Architecture
 
 **Goals**
 - A LangGraph agent that chooses among at least 3 tools (we have 4) and loops until it has enough evidence.
 - A local open-source LLM via Ollama does the reasoning step.
-- MongoDB stores alerts, the playbook, and node metadata.
+- MongoDB Atlas stores alerts, the playbook, and CMDB node metadata.
+- Priority Queue service enforcing FATAL > CRITICAL > ERROR > WARNING > INFO intake.
+- Interactive Next.js triage console with real-time SSE event updates.
 - `POST /triage` returns root cause, recommended action, confidence and the **tool trace**.
 - An evaluation comparing the agent against a manual baseline and a rule-only baseline (accuracy, time, consistency).
 
-**Non-goals (do not build these)**
-- No web UI, dashboard or React app.
-- No fine-tuning or training of models.
+**Non-goals (Safety Boundaries)**
+- No automatic execution of remediation commands changing physical infrastructure.
 - No cloud LLM APIs. The LLM must run locally through Ollama.
-- No real monitoring integration. All alerts are simulated.
+- No real monitoring integration. All alerts are simulated from realistic telemetry.
 
 ---
 
@@ -222,29 +223,34 @@ If you are an AI agent working for one member, **stay inside that member's files
 ## 9. Setup and run
 
 ```bash
-# 1. Environment
+# 1. Environment & Dependencies
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
+cp .env.example .env                                  # Add your MONGO_URI in .env
 
-# 2. Services
-docker compose up -d                                    # MongoDB
-ollama pull qwen2.5:7b                                  # or qwen2.5:3b on low RAM
+# 2. Start Local LLM (Optional for agent reasoning)
+ollama pull qwen2.5:7b                                # or qwen2.5:3b on low RAM
 
-# 3. Data
-python -m scripts.validate_dataset                      # integrity checks
-python -m scripts.generate_variants                     # noisy test variants
-python -m scripts.seed_db                               # load into Mongo and create indexes
+# 3. Data & Validation
+python -m scripts.validate_dataset                    # 23/23 signature check
+python -m scripts.generate_variants --save-mongo      # 60 noisy variants
+python -m scripts.seed_db                             # upload/verify cloud Mongo
 
-# 4. Run the API
-uvicorn anvesaka.api.main:app --reload                  # Swagger at http://localhost:8000/docs
+# 4. Run the FastAPI Backend (Port 8000)
+PYTHONPATH=. uvicorn anvesaka_AI.api.main:app --reload --port 8000
 
-# 5. Try it
-curl -X POST http://localhost:8000/triage -H "Content-Type: application/json" -d '{"alert_id": "<id from alerts.json>"}'
+# 5. Run the Next.js Frontend (Port 3000)
+cd frontend
+pnpm install && pnpm dev
 
-# 6. Evaluate
-python -m scripts.run_eval
-pytest
+# 6. Run the Streaming Alert Simulator
+PYTHONPATH=. python -m scripts.simulate_alerts --count 10 --interval 0.5
+
+# 7. Run the Automated Judge Demo Script
+PYTHONPATH=. python -m scripts.demo
+
+# 8. Run the Full Test Suite
+PYTHONPATH=. pytest tests/ -v
 ```
 
 ---
