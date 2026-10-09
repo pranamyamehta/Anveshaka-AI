@@ -232,7 +232,8 @@ def score_entry(entry: PlaybookEntry, ctx: Ctx) -> PlaybookMatch:
             tools.add("correlate_alerts" if c.context in (ClauseContext.CORRELATION, ClauseContext.CROSS_DOMAIN)
                       else "get_node_context")
     n = len(entry.signature_clauses)
-    return PlaybookMatch(incident_id=entry.incident_id, score=round(len(sat) / n, 3), n_satisfied=len(sat),
+    score = round(len(sat) / n, 3) if n > 0 else 0.0
+    return PlaybookMatch(incident_id=entry.incident_id, score=score, n_satisfied=len(sat),
                          n_violated=len(vio), n_unverified=len(unv), satisfied=sat, violated=vio,
                          unverified=unv, needs_tools=sorted(tools))
 

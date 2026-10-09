@@ -32,7 +32,7 @@ def get_settings() -> Settings:
         mongo_uri=os.getenv("MONGO_URI", "mongodb://localhost:27017"),
         mongo_db=os.getenv("MONGO_DB", "anvesaka"),
         ollama_host=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
-        ollama_model=os.getenv("OLLAMA_MODEL", "qwen2.5:7b"),
+        ollama_model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         max_agent_steps=max_agent_steps,
         slack_webhook_url=webhook or None,
     )
