@@ -29,7 +29,7 @@ _cached_raw_alerts: dict[str, dict[str, Any]] = {}
 
 
 def _load_raw_alerts() -> dict[str, dict[str, Any]]:
-    """Load alerts directly from MongoDB Atlas."""
+    """Load alerts directly from MongoDB Atlas or fallback to local file."""
     global _cached_raw_alerts
     if not _cached_raw_alerts:
         try:
@@ -42,6 +42,22 @@ def _load_raw_alerts() -> dict[str, dict[str, Any]]:
                     _cached_raw_alerts[aid] = item
         except Exception:
             pass
+            
+        # Fallback to local JSON if Mongo failed or returned nothing
+        if not _cached_raw_alerts:
+            try:
+                alerts_path = Path("data/raw/alerts.json")
+                if alerts_path.exists():
+                    with open(alerts_path, "r") as f:
+                        data = json.load(f)
+                        for item in data:
+                            aid = item.get("alert_id")
+                            if aid:
+                                _cached_raw_alerts[aid] = item
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to load fallback alerts.json: {e}")
+                
     return _cached_raw_alerts
 
 
@@ -162,7 +178,7 @@ _reviews: dict[str, dict[str, Any]] = {}
 
 
 def _load_playbook() -> list[dict[str, Any]]:
-    """Load historical incident playbook directly from MongoDB Atlas."""
+    """Load historical incident playbook directly from MongoDB Atlas or fallback to local file."""
     global _cached_playbook
     if not _cached_playbook:
         try:
@@ -173,6 +189,20 @@ def _load_playbook() -> list[dict[str, Any]]:
                 _cached_playbook.append(item)
         except Exception:
             pass
+            
+        # Fallback to local JSON if Mongo failed or returned nothing
+        if not _cached_playbook:
+            try:
+                playbook_path = Path("data/raw/playbook.json")
+                if playbook_path.exists():
+                    with open(playbook_path, "r") as f:
+                        data = json.load(f)
+                        for item in data:
+                            _cached_playbook.append(item)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Failed to load fallback playbook.json: {e}")
+                
     return _cached_playbook
 
 

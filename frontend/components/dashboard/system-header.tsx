@@ -4,15 +4,26 @@ import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 
+import type { Incident } from '@/lib/incidents'
+
 const INGEST_INTERVAL = 18
 
-const summary = [
-  { label: 'Critical', count: 17, className: 'bg-red-50 text-red-700 border-red-200', dot: 'bg-red-500' },
-  { label: 'Warning', count: 16, className: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
-  { label: 'Nominal', count: 7, className: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500' },
-]
+export function SystemHeader({ incidents = [] }: { incidents?: Incident[] }) {
+  const fatalCount = incidents.filter(i => i.severity === 'fatal' && i.status !== 'resolved').length
+  const criticalCount = incidents.filter(i => i.severity === 'critical' && i.status !== 'resolved').length
+  const errorCount = incidents.filter(i => i.severity === 'error' && i.status !== 'resolved').length
+  const warningCount = incidents.filter(i => i.severity === 'warning' && i.status !== 'resolved').length
+  const infoCount = incidents.filter(i => i.severity === 'info' && i.status !== 'resolved').length
+  const resolvedCount = incidents.filter(i => i.status === 'resolved').length
 
-export function SystemHeader() {
+  const summary = [
+    ...(fatalCount > 0 ? [{ label: 'Fatal', count: fatalCount, className: 'bg-gradient-to-r from-rose-700 to-violet-700 text-white border-transparent', dot: 'bg-white' }] : []),
+    ...(criticalCount > 0 ? [{ label: 'Critical', count: criticalCount, className: 'bg-gradient-to-r from-red-600 to-orange-500 text-white border-transparent', dot: 'bg-white' }] : []),
+    ...(errorCount > 0 ? [{ label: 'Error', count: errorCount, className: 'bg-gradient-to-r from-orange-500 to-rose-400 text-white border-transparent', dot: 'bg-white' }] : []),
+    ...(warningCount > 0 ? [{ label: 'Warning', count: warningCount, className: 'bg-gradient-to-r from-amber-500 to-yellow-400 text-white border-transparent', dot: 'bg-white' }] : []),
+    ...(infoCount > 0 ? [{ label: 'Info', count: infoCount, className: 'bg-gradient-to-r from-blue-500 to-cyan-400 text-white border-transparent', dot: 'bg-white' }] : []),
+    { label: 'Resolved', count: resolvedCount, className: 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-transparent', dot: 'bg-white' },
+  ]
   const [seconds, setSeconds] = useState(INGEST_INTERVAL)
 
   useEffect(() => {

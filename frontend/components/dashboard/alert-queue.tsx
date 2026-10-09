@@ -7,10 +7,23 @@ import type { Incident, Severity } from '@/lib/incidents'
 
 type Filter = 'all' | 'critical' | 'warning'
 
-const severityStyles: Record<Severity, string> = {
-  critical: 'bg-red-50 text-red-700 border-red-200',
-  warning: 'bg-amber-50 text-amber-700 border-amber-200',
-  error: 'bg-red-50 text-red-700 border-red-200',
+const severityStyles: Record<Severity | 'resolved', string> = {
+  fatal: 'bg-gradient-to-r from-rose-700 to-violet-700 text-white border-transparent shadow-sm',
+  critical: 'bg-gradient-to-r from-red-600 to-orange-500 text-white border-transparent shadow-sm',
+  error: 'bg-gradient-to-r from-orange-500 to-rose-400 text-white border-transparent shadow-sm',
+  warning: 'bg-gradient-to-r from-amber-500 to-yellow-400 text-white border-transparent shadow-sm',
+  info: 'bg-gradient-to-r from-blue-500 to-cyan-400 text-white border-transparent shadow-sm',
+  resolved: 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white border-transparent shadow-sm',
+}
+
+function getBorderColor(severity: Severity | 'resolved', active: boolean): string {
+  if (severity === 'resolved') return active ? 'border-l-emerald-500 bg-emerald-50/50' : 'border-l-emerald-400 hover:bg-emerald-50/30'
+  if (severity === 'fatal') return active ? 'border-l-rose-700 bg-rose-50/50' : 'border-l-transparent hover:bg-slate-50'
+  if (severity === 'critical') return active ? 'border-l-red-600 bg-red-50/50' : 'border-l-transparent hover:bg-slate-50'
+  if (severity === 'error') return active ? 'border-l-orange-500 bg-orange-50/50' : 'border-l-transparent hover:bg-slate-50'
+  if (severity === 'warning') return active ? 'border-l-amber-500 bg-amber-50/50' : 'border-l-transparent hover:bg-slate-50'
+  if (severity === 'info') return active ? 'border-l-blue-500 bg-blue-50/50' : 'border-l-transparent hover:bg-slate-50'
+  return active ? 'border-l-slate-400 bg-slate-50' : 'border-l-transparent hover:bg-slate-50'
 }
 
 export function AlertQueue({
@@ -68,7 +81,7 @@ export function AlertQueue({
         </div>
       </div>
 
-      <ul className="flex flex-col gap-2 p-3">
+      <ul className="flex flex-col gap-2 p-3 max-h-[600px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
         {visible.map((incident) => {
           const active = incident.id === selectedId
           return (
@@ -78,20 +91,18 @@ export function AlertQueue({
                 onClick={() => onSelect(incident.id)}
                 aria-current={active ? 'true' : undefined}
                 className={cn(
-                  'w-full rounded-md border border-l-2 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40',
-                  active
-                    ? 'border-slate-200 border-l-blue-600 bg-blue-50/50'
-                    : 'border-slate-200 border-l-transparent bg-white hover:bg-slate-50',
+                  'w-full rounded-md border border-l-[3px] border-slate-200 p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/40 shadow-sm hover:shadow',
+                  getBorderColor(incident.status === 'resolved' ? 'resolved' : incident.severity, active)
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={cn(
-                      'rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider',
-                      severityStyles[incident.severity],
+                      'rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                      incident.status === 'resolved' ? severityStyles.resolved : severityStyles[incident.severity],
                     )}
                   >
-                    {incident.severity}
+                    {incident.status === 'resolved' ? 'Resolved' : incident.severity}
                   </span>
                   <span className="text-[11px] text-slate-400">{incident.receivedAgo}</span>
                 </div>

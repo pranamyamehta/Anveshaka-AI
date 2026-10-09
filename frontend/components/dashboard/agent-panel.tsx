@@ -53,14 +53,19 @@ function StepBody({ step }: { step: AgentStep }) {
 
 type AuthState = 'idle' | 'running' | 'done'
 
-export function AgentPanel({ incident }: { incident: Incident }) {
+export function AgentPanel({ incident, onResolve }: { incident: Incident, onResolve?: (id: string) => void }) {
   const [auth, setAuth] = useState<{ id: string; state: AuthState }>({ id: incident.id, state: 'idle' })
   const state = auth.id === incident.id ? auth.state : 'idle'
 
   const authorize = () => {
     const id = incident.id
     setAuth({ id, state: 'running' })
-    setTimeout(() => setAuth((cur) => (cur.id === id ? { id, state: 'done' } : cur)), 1800)
+    setTimeout(() => {
+      setAuth((cur) => (cur.id === id ? { id, state: 'done' } : cur))
+      if (onResolve) {
+        onResolve(id)
+      }
+    }, 1800)
   }
 
   return (

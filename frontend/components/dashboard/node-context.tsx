@@ -76,11 +76,21 @@ export function NodeContext({ incident }: { incident: Incident }) {
         </div>
         <div
           role="alert"
-          className="mt-3 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+          className={cn(
+            "mt-3 flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium",
+            incident.status === 'resolved' 
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          )}
         >
           <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
           {incident.bannerText}
-          <span className="ml-auto font-mono text-xs font-normal text-red-600">{incident.id}</span>
+          <span className={cn(
+            "ml-auto font-mono text-xs font-normal",
+            incident.status === 'resolved' ? "text-emerald-600" : "text-red-600"
+          )}>
+            {incident.id}
+          </span>
         </div>
       </div>
 

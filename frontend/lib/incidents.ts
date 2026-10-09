@@ -1,4 +1,4 @@
-export type Severity = 'critical' | 'warning' | 'error'
+export type Severity = 'fatal' | 'critical' | 'error' | 'warning' | 'info'
 export type Status = 'critical' | 'warning' | 'nominal'
 
 export type Metric = {
@@ -28,6 +28,7 @@ export type Incident = {
   metrics: Metric[]
   syslog: string[]
   steps: AgentStep[]
+  status?: 'pending' | 'resolved'
 }
 
 export const incidents: Incident[] = [
