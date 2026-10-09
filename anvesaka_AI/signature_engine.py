@@ -17,11 +17,19 @@ import statistics
 from dataclasses import dataclass
 from typing import Optional
 
-from schemas import (
-    Alert, AnomalyType, ClauseContext, ClauseKind, CorrelationResult, LookupResult,
-    NodeContext, NodeInfo, PlaybookEntry, PlaybookMatch, RelatedAlert, Severity,
-    SignatureClause, racks_adjacent,
-)
+try:
+    from anvesaka_AI.schemas import (
+        Alert, AnomalyType, ClauseContext, ClauseKind, CorrelationResult, LookupResult,
+        NodeContext, NodeInfo, PlaybookEntry, PlaybookMatch, RelatedAlert, Severity,
+        SignatureClause, racks_adjacent,
+    )
+except ImportError:
+    from schemas import (
+        Alert, AnomalyType, ClauseContext, ClauseKind, CorrelationResult, LookupResult,
+        NodeContext, NodeInfo, PlaybookEntry, PlaybookMatch, RelatedAlert, Severity,
+        SignatureClause, racks_adjacent,
+    )
+
 
 TOP_OF_RACK_U = 36           # U36+ counts as "top-of-rack" in a 42U rack
 _NUM = r"(-?\d+(?:\.\d+)?)"

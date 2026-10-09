@@ -14,13 +14,23 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from schemas import Alert, Decision, NodeInfo, PlaybookEntry, Scenario, Severity
-from signature_engine import Ctx, correlate, node_context, parse_playbook, rank_candidates, required_tools
+try:
+    from anvesaka_AI.schemas import Alert, Decision, NodeInfo, PlaybookEntry, Scenario, Severity
+    from anvesaka_AI.signature_engine import Ctx, correlate, node_context, parse_playbook, rank_candidates, required_tools
+except ImportError:
+    from schemas import Alert, Decision, NodeInfo, PlaybookEntry, Scenario, Severity
+    from signature_engine import Ctx, correlate, node_context, parse_playbook, rank_candidates, required_tools
+
+ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = ROOT / "data" / "raw"
+EVAL_DIR = ROOT / "data" / "eval"
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--data-dir", default=".")
+ap.add_argument("--data-dir", default=str(RAW_DIR))
 ap.add_argument("--alerts", default=None)
 ap.add_argument("--playbook", default=None)
+ap.add_argument("--nodes", default=None)
+ap.add_argument("--scenarios", default=None)
 ap.add_argument("--verbose", action="store_true")
 args = ap.parse_args()
 D = Path(args.data_dir)
@@ -30,12 +40,23 @@ def load(p):
     return json.loads(Path(p).read_text(encoding="utf-8-sig"))
 
 
-alerts = [Alert(**x) for x in load(args.alerts or D / "alerts.json")]
-playbook = [parse_playbook(PlaybookEntry(**x)) for x in load(args.playbook or D / "playbook.json")]
-nodes = {n["node_id"]: NodeInfo(**n) for n in load(D / "cmdb_nodes.json")}
-scenarios = [Scenario(**x) for x in load(D / "ground_truth.json")]
+from anvesaka_AI.db.mongo import ping_db, get_alerts_collection, get_playbook_collection, get_nodes_collection, get_collection
+
+if ping_db() and not args.alerts:
+    print("Connecting to live MongoDB Atlas to validate dataset...")
+    alerts = [Alert(**doc) for doc in get_alerts_collection().find({})]
+    playbook = [parse_playbook(PlaybookEntry(**doc)) for doc in get_playbook_collection().find({})]
+    nodes = {doc["node_id"]: NodeInfo(**doc) for doc in get_nodes_collection().find({})}
+    scenarios = [Scenario(**doc) for doc in get_collection("eval_scenarios").find({})]
+else:
+    alerts = [Alert(**x) for x in load(args.alerts or D / "alerts.json")]
+    playbook = [parse_playbook(PlaybookEntry(**x)) for x in load(args.playbook or D / "playbook.json")]
+    nodes = {n["node_id"]: NodeInfo(**n) for n in load(args.nodes or D / "cmdb_nodes.json")}
+    scenarios = [Scenario(**x) for x in load(args.scenarios or EVAL_DIR / "ground_truth.json")]
+
 A = {a.alert_id: a for a in alerts}
 P = {e.incident_id: e for e in playbook}
+
 errors: list[str] = []
 
 
