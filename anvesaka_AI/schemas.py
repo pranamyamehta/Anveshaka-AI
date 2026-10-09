@@ -446,17 +446,19 @@ def _merge_trace(old: list, new: list) -> list:
 
 
 try:  # langgraph is optional at import time so this file works for data tasks too
-    from langgraph.graph.message import add_messages
-    _Msgs = Annotated[list, add_messages]
-except Exception:                                   # pragma: no cover
-    _Msgs = list
+    from langgraph.graph.message import add_messages  # type: ignore
+except Exception:                                     # pragma: no cover
+    def add_messages(left: list, right: list) -> list:  # type: ignore
+        return (left or []) + (right or [])
+
+_Msgs = Annotated[list, add_messages]
 
 
 class AgentState(TypedDict, total=False):
     """Graph:  ingest -> llm_decide -> tool_node -> (loop <= max_steps) -> finalize -> notify
     Each tool node writes its result into the matching key AND appends to tool_trace."""
     alert: dict                      # Alert.model_dump()
-    messages: _Msgs                  # LLM conversation incl. tool calls/results
+    messages: Annotated[list, add_messages]  # LLM conversation incl. tool calls/results
     correlation: Optional[dict]      # CorrelationResult
     node_context: Optional[dict]     # NodeContext
     lookup: Optional[dict]           # LookupResult

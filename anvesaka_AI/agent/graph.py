@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from anvesaka_AI.agent.nodes import (
     ToolExecutor,
@@ -120,13 +120,17 @@ class _FallbackGraph:
 
         while step < max_steps:
             update = llm_decide_node(state, tool_executor=self._executor)
-            state = {**state, **update}
+            existing_trace = list(state.get("tool_trace", []))
+            new_trace = list(update.get("tool_trace", []))
+            merged = {**state, **update}
+            merged["tool_trace"] = existing_trace + new_trace
+            state = cast(AgentState, merged)
             step = state.get("step", 0)
             if state.get("recommendation"):
                 break
 
         final_update = finalize_node(state, playbook_index=self._playbook_index)
-        state = {**state, **final_update}
+        state = cast(AgentState, {**state, **final_update})
         return state
 
 
